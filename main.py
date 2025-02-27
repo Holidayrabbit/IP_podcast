@@ -23,8 +23,8 @@ load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # 定义模型
-DEEPSEEK_MODEL = "google/gemini-2.0-pro-exp-02-05:free"
-GEMINI_MODEL = "google/gemini-2.0-pro-exp-02-05:free"
+DEEPSEEK_MODEL = "google/gemini-2.0-flash-001"
+GEMINI_MODEL = "google/gemini-2.0-flash-001"
 
 # 创建 LangChain 模型实例
 deepseek_model = ChatOpenAI(
@@ -39,9 +39,7 @@ gemini_model = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
 )
 
-# 定义 ElevenLabs 声音
-VOICE_A = "Adam"  # 替换为您想要的声音ID
-VOICE_B = "Rachel"  # 替换为您想要的声音ID
+
 
 def read_text_file(directory_path: str) -> str:
     """读取目录下所有文本文件的内容并合并"""
@@ -149,6 +147,9 @@ def generate_podcast_transcript(book_summary: str, core_topics: str, ip_setting:
 
     Conversation Duration: {duration_minutes} minutes
 
+    A's name: {SPEAKER_1}
+    B's name: {SPEAKER_2}
+
     Please create the dialogue script in the following format (in actual dialogue, A and B should be replaced with their respective names):
     ****** opening ******
     A : (opening remarks)
@@ -156,10 +157,10 @@ def generate_podcast_transcript(book_summary: str, core_topics: str, ip_setting:
     ...
 
     ****** content ******
-    A [emotion1]: (discussing first topic)
-    B [emotion2]: (responding and deepening discussion)
-    A [emotion3]: (raising questions or new perspectives)
-    B [emotion4]: (responding)
+    A : (discussing first topic)
+    B : (responding and deepening discussion)
+    A : (raising questions or new perspectives)
+    B : (responding)
     ...
 
     ****** content ******
@@ -172,11 +173,12 @@ def generate_podcast_transcript(book_summary: str, core_topics: str, ip_setting:
 
     Requirements:
     1. The dialogue should flow naturally, like real people conversing
-    2. Each speaker's tone and emotion should be noted in square brackets
-    3. Include opening remarks, multiple content sections, and closing remarks
-    4. Ensure coverage of all core topics
-    5. Avoid lengthy monologues, maintain interactivity
-    6. Total dialogue length and depth should be appropriate for a {duration_minutes}-minute podcast
+    2. Include opening remarks, multiple content sections, and closing remarks
+    3. Ensure coverage of all core topics
+    4. Avoid lengthy monologues, maintain interactivity
+    5. Total dialogue length and depth should be appropriate for a {duration_minutes} minute podcast
+    6. Use simple txt format without any markdown formatting or additional text
+    7. Start directly with the dialogue, without any introduction or explanation    
     """
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
@@ -187,7 +189,9 @@ def generate_podcast_transcript(book_summary: str, core_topics: str, ip_setting:
         "book_summary": book_summary,
         "core_topics": core_topics,
         "ip_setting": ip_setting,
-        "duration_minutes": calculate_duration_from_topics(core_topics)
+        "duration_minutes": calculate_duration_from_topics(core_topics),
+        "SPEAKER_1": SPEAKER_1,
+        "SPEAKER_2": SPEAKER_2
     })
     
     # 确保输出目录存在
@@ -209,7 +213,7 @@ def calculate_duration_from_topics(core_topics: str) -> int:
     try:
         # 尝试找出所有包含"分钟"的行并提取数字
         import re
-        minutes = re.findall(r'(\d+)\s*分钟', core_topics)
+        minutes = re.findall(r'(\d+)\s*minutes', core_topics)
         if minutes:
             return sum(map(int, minutes))
         return 20  # 默认20分钟
@@ -274,7 +278,7 @@ async def generate_audio_segment(segment: Dict[str, Any], output_dir: Path) -> s
     emotion = segment["emotion"]
     
     # 选择声音
-    voice = VOICE_A if speaker == "A" else VOICE_B
+    voice = VOICE_A if speaker == "SPEAKER_1" else VOICE_B
     
     # 根据情感调整语音参数
     stability = 0.5
@@ -364,13 +368,26 @@ async def create_podcast(podcast_theme: str, book_summary_path: str, ip_setting:
     }
 
 if __name__ == "__main__":
+        # 定义 ElevenLabs 声音
+    VOICE_A = "Adam"  # 替换为您想要的声音ID
+    VOICE_B = "Rachel"  # 替换为您想要的声音ID
+
+    # 定义说话者名字
+    # SPEAKER_1 = "Samuel"
+    # SPEAKER_2 = "Alex"
+
+    SPEAKER_1 = "Edith"
+    SPEAKER_2 = "Chloe"
     # 示例用法
-    book_summary_path = "./data/summary/self_improvement/"
-    duration_minutes = 10
+    book_summary_path1 = "./data/summary/self_improvement/"
+    book_summary_path2 = "./data/summary/relationship_and_family/"
+
+    duration_minutes = 3
+
     output_path = "./output/podcast.mp3"
-    podcast_theme = "How Social Media Ruined My Life (self-doubt):The negative impacts of social media on mental health and self-esteem, Body image issues"
-    
-    ip_setting = """
+    podcast_theme1 = "How Social Media Ruined My Life (self-doubt): The negative impacts of social media on mental health and self-esteem, Body image issues"
+    podcast_theme2 = "Escaping Friend Zone: the complexities of transitioning from friendship to a romantic relationship"
+    ip_setting1 = """
     Character Information:
         Character A:
             Image: Wise Elder
@@ -436,4 +453,69 @@ if __name__ == "__main__":
 
     """
 
-    asyncio.run(create_podcast(podcast_theme, book_summary_path, ip_setting, duration_minutes, output_path))
+    ip_setting2 = """
+    Character Information:
+        Character A:
+            Image: "The Silver Siren"
+            Name: Edith 
+            Character Profile:
+            1. Character Keywords: Free-spirited, elegant, wise, humorous, outspoken, full of passion for life
+            2. Background:
+            - Career: Edith is a respected fashion magazine editor who has witnessed decades of fashion trends. After retirement, she became a bestselling memoir writer. Her books cover not only her colorful love life but also topics like fashion, social skills, and female independence. Her social media accounts are filled with fashion insights and relationship wisdom, attracting a massive following.
+            - Emotional Experience: Edith has been married three times, each experience giving her unique insights into relationships. She maintains an optimistic attitude towards love, believing that every relationship has value, whether successful or not. She often shares her past love stories with humor, helping listeners gain insights from her experiences.
+            3. Personality Traits:
+            - Wisdom and Humor: She effortlessly combines traditional wisdom with modern reality TV culture, such as using classical love quotes to comment on contemporary dating phenomena.
+            - Outspoken: Edith dares to express her views, often surprising people with her unconventional insights, including her confusion about young people's dating habits and her complaints about "digital love" possessiveness.
+            - Detail-oriented in Life: She shares life tips, such as how to boost confidence during dates and how to express personality through clothing.
+            4. Voice Characteristics: Edith's voice is slightly husky yet gentle, conveying the weight of life experience. Her tone is rich in variation and infectious, capable of conveying her passion and determination for life and love.
+            5. Distinctive Behaviors:
+            - Collecting "Old-school" Love Letters: Edith enjoys hunting for second-hand letters in antique markets or used bookstores, especially love letters, believing they are precious testimonies of past emotions.
+            - Never Leaving Home Without Makeup: Even just to go to the trash bin, Edith must make herself presentable, believing makeup is a form of respect for herself and others.
+            6. Flaws:
+            - Confused by Young People's Vocabulary: Although she understands modern culture well, she sometimes gets bewildered by young people's slang and humorously asks repeatedly about the meaning of each word.
+            - Loves to be Dramatic: Edith sometimes exaggerates daily occurrences, like shouting "My life is in peril!" when her tea spills.
+            7. Likes:
+            - Vintage Music and Dance: Edith loves music from the 50s to 70s and can't help dancing when she hears these songs, encouraging others to join in.
+            - Warm Nostalgic Stories: She loves warm romance stories and classic love movies, often recommending these works on the show.
+            8. Dislikes:
+            - Fast-food Culture of Internet Trends: Edith is dissatisfied with the superficial internet pop culture, believing such trends weaken genuine emotional connections.
+
+        Character B:
+            Image: "The Millennial Matchmaker" (28 years old)
+            Name: Chloe
+            Character Profile:
+            1. Character Keywords: Innovative, passionate, intuitive, energetic, curious, modern life explorer
+            2. Background:
+            - Career: Chloe is a dating app developer who has won multiple startup awards for innovative algorithms and user experience design. Besides entrepreneurship, she's also a well-known love podcast host, sharing modern dating culture and relationship tips while promoting her brand on social media.
+            - Emotional Experience: Despite being tech-savvy, Chloe has never dated, which she discusses with self-deprecating humor and willingness to explore modern love's loneliness and confusion. Her single status gives her keen insight into contemporary dating culture, especially complex relationships in the social media era.
+            3. Personality Traits:
+            - Tech-driven Optimist: Chloe believes technology can solve many problems, including love, so she's passionate about combining big data with psychology to analyze modern dating issues.
+            - Enthusiastic and Proactive: She's passionate about life, full of novel ideas, often encouraging listeners to try different dating methods and sharing trending dating patterns and social media pop culture.
+            - Self-deprecating and Relatable: Chloe isn't afraid to share her imperfections and vulnerabilities, making listeners empathize through light-hearted, humorous stories.
+            4. Voice Characteristics: Chloe's voice is sweet, fast-paced, and full of energy. She often uses encouraging tones to engage listeners in discussions, creating a relaxed and pleasant atmosphere.
+            5. Behavioral Characteristics:
+            - Often Uses Emojis to Record Moods: When updating social media, Chloe always uses abundant emojis to express her emotions, which might seem childish but is full of personality.
+            - Loves Photographing Daily Life: She takes photos during meals, scenery appreciation, or any small happy moments, creating a "My Daily Little Happiness" series.
+            6. Flaws:
+            - Tends to Overcomplicate Things: Chloe sometimes over-analyzes minor details, making simple decisions complex, like obsessing over what to wear on dates.
+            - Fear of Commitment: While she believes dating is good, she's afraid of long-term relationships and deep commitment, often hesitating.
+            7. Likes:
+            - Trendy Dating Activities: Chloe enjoys trying various novel, creative dating ideas like "escape rooms" or "art graffiti," believing these activities can enhance emotional connections.
+            - Sweets and Coffee: She's a sweet tooth and always has snacks in her bag, with plenty of desserts in her diet.
+            8. Dislikes:
+            - Cliché Dating Routines: She despises outdated dating methods (like movie-then-dinner), believing they make dates lose their freshness.
+
+    Their Podcast Interaction Dynamic:
+        Generational Dialogue: Edith and Chloe often interact around specific topics in the show, such as "Common Pitfalls in Modern Dating" or "How to Maintain Independence in Love." Edith draws from her rich life experience to reference traditional wisdom, while Chloe complements with modern tech trends and young people's perspectives, creating interesting discussions through their contrasting viewpoints.
+        Humorous Dialogue: Their conversations are light and humorous. Edith often uses her unique humor to joke about her age and life experience, saying things like: "When I was young, love didn't need an app to download." Chloe playfully retorts: "Well, I guess you used carrier pigeons then?" This humorous complement not only makes the show entertaining but also lets listeners feel the genuine and warm friendship between them.
+
+    Their Meeting Story:
+        First Encounter: City Literary Festival:
+            Edith and Chloe's meeting can be traced back to a city literary festival. Edith, as a bestselling memoir writer, was invited to participate in a roundtable discussion about "Love and Wisdom," while Chloe, an early-stage entrepreneur planning to start her love podcast, was seeking inspiration at the event.
+            During the discussion, Edith shared her unique insights about life and love, telling stories of her three marriages with humor and wisdom. Chloe complemented the discussion from a modern perspective, talking about conflicts and opportunities in contemporary dating culture.
+        Spark:
+            Their first interaction was full of sparks. After the meeting, Chloe gathered courage to ask Edith for writing advice and shared her views on how technology is changing love. Edith appreciated Chloe's enthusiasm and innovative thinking but also elegantly and humorously teased about the "fast-food nature" of modern dating, making Chloe laugh.
+            During that exchange, they discovered that despite their nearly 50-year age gap, they shared common curiosity and love for romance. They had tea together afterward, further sharing their experiences and building a good friendship.  
+    """
+
+    asyncio.run(create_podcast(podcast_theme2, book_summary_path2, ip_setting2, duration_minutes, output_path))
