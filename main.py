@@ -289,6 +289,8 @@ async def generate_audio_segment(segment: Dict[str, Any], output_dir: Path) -> s
     elif emotion.lower() in ["平静", "思考", "严肃"]:
         stability = 0.7
     
+
+
     # 生成音频
     audio = generate(
         text=text,
@@ -368,6 +370,8 @@ async def create_podcast(podcast_theme: str, book_summary_path: str, ip_setting:
     }
 
 if __name__ == "__main__":
+    """测试git 提交账户"""
+
         # 定义 ElevenLabs 声音
     VOICE_A = "Adam"  # 替换为您想要的声音ID
     VOICE_B = "Rachel"  # 替换为您想要的声音ID
