@@ -43,3 +43,12 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# 屏蔽特定路径的文件或文件夹
+src/config/secret.json     # 屏蔽特定路径下的文件
+assets/images/raw/         # 屏蔽特定路径下的文件夹
+
+# 屏蔽特定文件夹
+data/books/                    # 屏蔽名为 books 的文件夹及其所有内容
+ref/                        # 屏蔽名为 ref 的文件夹及其所有内容
+data/summary/
