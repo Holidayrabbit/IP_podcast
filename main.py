@@ -9,8 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
-from elevenlabs import generate, save, set_api_key
-from elevenlabs import Voice
+
 import json
 
 
@@ -18,14 +17,14 @@ import json
 load_dotenv()
 
 # 设置 ElevenLabs API 密钥
-set_api_key(os.getenv("ELEVENLABS_API_KEY"))
+
 
 # 设置 OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # 定义模型
-DEEPSEEK_MODEL = "deepseek-ai/deepseek-chat-r1"
-GEMINI_MODEL = "google/gemini-pro-2.0-experimental"
+DEEPSEEK_MODEL = "google/gemini-2.0-pro-exp-02-05:free"
+GEMINI_MODEL = "google/gemini-2.0-pro-exp-02-05:free"
 
 # 创建 LangChain 模型实例
 deepseek_model = ChatOpenAI(
@@ -78,37 +77,30 @@ def read_text_file(directory_path: str) -> str:
 
 def generate_core_topics(podcast_theme: str, book_summary: str, duration_minutes: int) -> str:
     """使用DeepSeek生成核心话题"""
-    prompt_template = """
-    你是一位专业的播客内容策划师。请根据以下播客主题、书籍摘要和预期对话时长，生成适合双人对话播客的核心话题列表。
-    如果对话时长较短比如5分钟以内，提供的话题数量为3个。否则提供5个。
-    这些核心话题将用于指导播客对话的方向和深度。
-    注意解释的顺序，清晰的结构和严谨的逻辑。话题的顺序应该是有逻辑的，避免感觉从一个想法跳到下一个想法。
-    核心话题应该遵循一些逻辑结构，例如从基础到实际应用，然后到个人成长的更广泛视角。
+    prompt_template = """You are a professional podcast content strategist. Generate core topics for a two-person dialogue podcast based on the following inputs.
 
-    播客主题:
+    Podcast Theme:
     {podcast_theme}
 
-    书籍摘要:
+    Book Summary:
     {book_summary}
 
-    预期对话时长: {duration_minutes}分钟
+    Expected Duration: {duration_minutes} minutes
 
-    每个话题应该包含:
-    1. 话题标题
-    2. 话题描述
-    确保话题之间有逻辑连贯性。
+    Instructions:
+    1. If duration is under 5 minutes, generate 3 topics. Otherwise, generate 5 topics.
+    2. Topics should follow a logical progression from basics to practical applications to broader perspectives.
+    3. Ensure topics are interconnected and flow naturally.
+    4. Each topic must include a title and detailed explanation.
 
-    输出的json格式如下：
-    {
-        "core_topics": [
-            {
-                "topic_title": "话题标题",
-                "topic_description": "话题描述"
-            }
-        ]
-    }
-    Do not include anything other than JSON in the output.
-    """
+    Output format: Required JSON Structure:
+    - Root object must contain "core_topics" array 
+    - Each topic in core_topics must have:
+      * core_topic (main topic title)
+      * explanation (detailed description)
+
+    Response must be valid JSON only, no additional text.
+    Focus on creating engaging, discussion-worthy topics that match the theme and book content."""
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
     chain = prompt | deepseek_model | StrOutputParser()
@@ -119,19 +111,23 @@ def generate_core_topics(podcast_theme: str, book_summary: str, duration_minutes
         "duration_minutes": duration_minutes
     })
     
+    # 打印API返回结果，用于调试
+    print("API返回结果：")
+    print(result)
+    
     # 确保输出目录存在
-    os.makedirs("output", exist_ok=True)
+    os.makedirs("output/core_topics", exist_ok=True)
     
     # 尝试解析JSON并保存
     try:
         # 解析JSON字符串
         topics_data = json.loads(result)
         # 保存到文件
-        with open("output/core_topics.json", "w", encoding="utf-8") as f:
+        with open("output/core_topics/core_topics.json", "w", encoding="utf-8") as f:
             json.dump(topics_data, f, ensure_ascii=False, indent=4)
     except json.JSONDecodeError:
         # 如果不是有效的JSON，则直接保存文本
-        with open("output/core_topics.txt", "w", encoding="utf-8") as f:
+        with open("output/core_topics/core_topics.txt", "w", encoding="utf-8") as f:
             f.write(result)
     
     return result
@@ -139,59 +135,73 @@ def generate_core_topics(podcast_theme: str, book_summary: str, duration_minutes
 def generate_podcast_transcript(book_summary: str, core_topics: str, ip_setting: str) -> str:
     """使用Gemini生成播客对话脚本"""
     prompt_template = """
-    你是一位专业的播客脚本撰写者。请根据以下书籍摘要,核心话题,人设特点 对话时长，创建一段自然、有趣且信息丰富的双人对话播客脚本。
-    要求：让对话的两个人的语言展现出他们的人格特点，另外对话的主题是即将输入的书籍的信息
+    You are a professional podcast script writer. Based on the following book summary, core topics, character profiles, and conversation duration, please create a natural, engaging, and informative two-person dialogue podcast script.
+    Requirements: Ensure the dialogue reflects each character's personality traits, and the conversation focuses on the book's content.
 
-    书籍摘要:
+    Book Summary:
     {book_summary}
 
-    核心话题:
+    Core Topics:
     {core_topics}
 
-    人设特点:
+    Character Profiles:
     {ip_setting}
 
-    对话时长: {duration_minutes}分钟
+    Conversation Duration: {duration_minutes} minutes
 
-    请按照以下格式创建对话脚本(实际对话中，A和B的要换成各自的名字):
+    Please create the dialogue script in the following format (in actual dialogue, A and B should be replaced with their respective names):
     ****** opening ******
-    A : (开场白)
-    B : (回应)
+    A : (opening remarks)
+    B : (response)
     ...
 
     ****** content ******
-    A [情感1]: (讨论第一个话题)
-    B [情感2]: (回应并深入讨论)
-    A [情感3]: (提出问题或新观点)
-    B [情感4]: (回应)
+    A [emotion1]: (discussing first topic)
+    B [emotion2]: (responding and deepening discussion)
+    A [emotion3]: (raising questions or new perspectives)
+    B [emotion4]: (responding)
     ...
 
     ****** content ******
-    (继续下一个话题的讨论)
+    (continuing to next topic)
     ...
 
     ****** closing ******
-    A : (总结讨论)
-    B : (结束语)
+    A : (summarizing discussion)
+    B : (closing remarks)
 
-    要求:
-    1. 对话应该自然流畅，像真实的人在交谈
-    2. 每个发言者的语气和情感应在方括号中标注
-    3. 包含开场白、多个内容部分和结束语
-    4. 确保内容覆盖所有核心话题
-    5. 避免过长的独白，保持互动性
-    6. 总对话长度和深度应适合{duration_minutes}分钟的播客
+    Requirements:
+    1. The dialogue should flow naturally, like real people conversing
+    2. Each speaker's tone and emotion should be noted in square brackets
+    3. Include opening remarks, multiple content sections, and closing remarks
+    4. Ensure coverage of all core topics
+    5. Avoid lengthy monologues, maintain interactivity
+    6. Total dialogue length and depth should be appropriate for a {duration_minutes}-minute podcast
     """
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
     chain = prompt | gemini_model | StrOutputParser()
     
-    return chain.invoke({
+    # 生成对话脚本
+    transcript = chain.invoke({
         "book_summary": book_summary,
         "core_topics": core_topics,
         "ip_setting": ip_setting,
         "duration_minutes": calculate_duration_from_topics(core_topics)
     })
+    
+    # 确保输出目录存在
+    output_dir = os.path.join(".", "output", "transcript")
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 保存对话脚本
+    output_file = os.path.join(output_dir, "demo1_1.txt")
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(transcript)
+    
+    print(f"对话脚本已保存至: {output_file}")
+    
+    return transcript
 
 def calculate_duration_from_topics(core_topics: str) -> int:
     """从核心话题估算总时长"""
@@ -335,22 +345,22 @@ async def create_podcast(podcast_theme: str, book_summary_path: str, ip_setting:
     
     # 3. 生成播客脚本
     print("生成播客脚本...")
-    transcript = generate_podcast_transcript(book_summary, core_topics,ip_setting,duration_minutes)
+    transcript = generate_podcast_transcript(book_summary, core_topics, ip_setting)
     print(f"播客脚本已生成:\n{transcript[:500]}...\n")
     
-    # 4. 解析脚本
-    segments = parse_transcript(transcript)
-    print(f"解析出 {len(segments)} 个对话段落")
+    # # 4. 解析脚本
+    # segments = parse_transcript(transcript)
+    # print(f"解析出 {len(segments)} 个对话段落")
     
-    # 5. 生成音频
-    print("生成播客音频...")
-    final_path = await generate_full_podcast(segments, output_path)
-    print(f"播客已生成并保存至: {final_path}")
+    # # 5. 生成音频
+    # print("生成播客音频...")
+    # final_path = await generate_full_podcast(segments, output_path)
+    # print(f"播客已生成并保存至: {final_path}")
     
     return {
         "core_topics": core_topics,
         "transcript": transcript,
-        "audio_path": final_path
+        # "audio_path": final_path
     }
 
 if __name__ == "__main__":
@@ -361,70 +371,69 @@ if __name__ == "__main__":
     podcast_theme = "How Social Media Ruined My Life (self-doubt):The negative impacts of social media on mental health and self-esteem, Body image issues"
     
     ip_setting = """
-    两个人的个人信息如下：
-        角色A:
-            形象:智者老人 
-            姓名:萨缪尔·"萨姆"·埃尔德里奇（Samuel "Sam" Eldredge）
-            具体人设：
-            1. 人设关键词：智慧、阅历、共情、谦逊、幽默感、略带叛逆的"老灵魂"
-            2. 背景设定：萨姆是一位74岁高龄的老人，但绝对不是那种守旧的、带着说教腔调的角色。他是一位曾在多个领域取得过成功的"跨界智者"。年轻时，他曾当过摇滚乐手，后来成为一名心理学教授，又在50岁时重新创业，专注于研究幸福心理学和个人成长。他的兴趣广泛：瑜伽、冥想、单口喜剧……甚至在70岁时开始学习编程。他的智慧来自于他自己丰富、大胆且有时略显叛逆的人生经历，而不是单单依靠读书。他喜欢用生动的故事讲道理，语调轻松，却一针见血，总是有种"醍醐灌顶"的感觉。
-            3. 个性特点
-            - 宽容而真实：不会用"老生常谈"的方式劝导听众，更愿意通过幽默和共情与他们交流，承认自己的失败与脆弱。
-            - 坚定又包容：对永恒的"真理"有自己的坚持（比如如何活得快乐、如何看待自我价值），但也接受新思潮，愿意不断学习。
-            - 略带叛逆的幽默：会故意"轻吐槽"一些现代流行的个人发展概念，比如"5点起床才能成功"——他说自己认为中午喝杯好茶和冥想也能让人成功。
-            - 绝非完美圣人：萨姆承认他有缺点，比如年轻时太过追求物质成功，忽略了家人；但后来弥补了这些关系，这样的坦诚让人觉得他"活得真实"。
-            4. 声音表现：温暖的男中音，富有磁性，语调缓慢但带有坚定的力量，仿佛每句话都是从他的灵魂深处流淌出来的笑谈。
-            5. 行为特点：
-            - 习惯用诗句反打比方：他遇到任何生活中的问题时，总会用古诗或古文的语言来进行比喻，虽然只会让旁人感到好笑，但他觉得这样会让道理更深刻。
-            - 爱收集万年历：萨姆在各类杂货市场上喜欢寻找不同种类的万年历，这成为他一段沉迷的爱好。
-            6. 缺点：
-            - 有时说教过头：尽管善意，他有时会在不经意间进入"教导模式"，让人感觉听课的味道，尤其是当他觉得某个年轻人需要引导时。
-            - 固执己见：他有时在某些传统观念上显得固执，拒绝接受新事物，偶尔会让克洛伊哭笑不得。
-            7. 喜欢的东西：
-            - 怀旧的黑白电影：萨姆热爱经典电影，并定期会在週末举办小型电影之夜，邀请朋友们一起观看。
-            - 茶道和咖啡文化：对于在家泡茶时的仪式感，萨姆有独特的仪式，比如每种茶叶预备的不同茶具，他特别享受这个过程。
-            8. 讨厌的东西：
-            - 快节奏的生活方式：他对现代人的快节奏生活有些不满，认为这让人们失去了享受生活的乐趣。
+    Character Information:
+        Character A:
+            Image: Wise Elder
+            Name: Samuel "Sam" Eldredge
+            Character Profile:
+            1. Keywords: Wisdom, Experience, Empathy, Humility, Humor, Slightly Rebellious "Old Soul"
+            2. Background: Sam is a 74-year-old elder, but definitely not the traditional, preachy type. He's a "cross-domain sage" who has succeeded in multiple fields. In his youth, he was a rock musician, later became a psychology professor, and at 50, started a new business focusing on happiness psychology and personal growth. His interests are diverse: yoga, meditation, stand-up comedy... he even started learning programming at 70. His wisdom comes from his rich, bold, and sometimes rebellious life experiences, not just from books. He likes to teach through vivid stories, speaking casually but hitting the mark, always giving that "enlightening" feeling.
+            - Tolerant and Authentic: Doesn't lecture audiences with clichés, preferring to communicate through humor and empathy, acknowledging his own failures and vulnerabilities.
+            - Firm yet Inclusive: Has his own convictions about eternal "truths" (like how to live happily, how to view self-worth) but also accepts new trends and is willing to keep learning.
+            - Playfully Rebellious: Deliberately "lightly mocks" modern personal development concepts, like "wake up at 5 AM to succeed" - he says having good tea and meditation at noon can lead to success too.
+            - Far from Perfect: Sam admits his flaws, like focusing too much on material success in his youth and neglecting family; but he later mended these relationships, making him feel "authentically lived."
+            4. Voice Characteristics: Warm baritone, magnetic, slow-paced but with firm power, as if every word flows from the depths of his soul with a touch of humor.
+            5. Behavioral Traits:
+            - Uses Poetry as Metaphors: When facing any life issues, he tends to use classical poetry or ancient texts as metaphors, which might amuse others, but he believes it makes the lessons more profound.
+            - Collects Perpetual Calendars: Sam enjoys hunting for different types of perpetual calendars at various flea markets, which has become his passionate hobby.
+            6. Flaws:
+            - Sometimes Too Preachy: Despite good intentions, he occasionally slips into "teaching mode," making it feel like a lecture, especially when he thinks a young person needs guidance.
+            - Stubborn Views: Sometimes he's stubborn about certain traditional views, refusing to accept new things, occasionally making Chloe laugh helplessly.
+            7. Likes:
+            - Nostalgic Black and White Films: Sam loves classic movies and regularly hosts small movie nights, inviting friends to watch together.
+            - Tea and Coffee Culture: Has unique rituals for brewing tea at home, like specific teaware for different types of tea, particularly enjoying this process.
+            8. Dislikes:
+            - Fast-paced Lifestyle: Disapproves of modern people's fast-paced life, believing it makes people lose the joy of living.
 
-        角色B:
-            形象：年轻人
-            姓名：艾利克斯·莫雷（Alex Morey）
-            具体人设：
-            1. 人设关键词：热情、有感染力、真实、多元化、创新、偶尔自嘲
-            2. 背景设定：艾利克斯是一个27岁的跨领域年轻人，成长于洛杉矶一个混血家庭，父亲是企业家，母亲是一位社区心理医生。大学时，她在斯坦福大学学习了认知科学，但没选择传统的职业道路，而是成为了一名个人成长和创意思维方面的内容创作者。艾利克斯热衷于探索如何打破"计划"的束缚，专注于"实验式成长"——她将自己的人生看作一场接一场大大小小的实验，失败和成功都尽可能被拥抱。她喜欢用年轻人的语言来解读关于个人发展和成功的复杂话题。艾利克斯既有少年人的锐气，又充满自省的成熟。尽管她年纪轻轻，但她居然已经写了一本畅销书（由ChatGPT辅助创作，听众并不知道），并成为数次TEDx演讲的主讲人。
-            3. 个性特点
-            - 真实而直率：艾利克斯不假装"全部都了解"。比如在谈论如何"找到意义"这类话题时，她会承认自己也仍在探索，但会分享她独特的"尝试和犯错"经验。
-            - 热情和有感染力的行动主义者：她会不断鼓励听众付诸行动，哪怕是最小的一步，因为她相信"行动本身会定义方向"。
-            - 无畏地拆解传统智慧：她大胆挑战一些过时的个人发展理论，比如"努力工作就能成功""你的弱点会毁掉你"，并用现代案例或脑科学研究支撑她的观点。
-            - 轻松有趣，偶尔自嘲：她喜欢在讲述自己的经历时加入很多自嘲，比如"我试过了8种晨间日程，其中七种完全搞砸了，但第八种居然有用！虽然还没完全坚持下来，但嘿，谁能一天就变成完美的人呢？"
-            - 略显叛逆但带着脆弱：她不喜欢"被定义"，有时会质疑传统的生活轨迹；但偶尔也会坦诚自己在成长过程中遇到的迷茫情绪。
-            4. 声音表现：清晰悦耳的女青年嗓音，充满活力与亲和力，节奏稍快但很自然，有时会因为激情略微提高音调，让人听得十分带劲，但同时也能展现出安静和温柔的一面。
-            5. 特色行为：
-            - 用彩色便利贴记录生活：Chloe习惯在每个新约会或重要事情前写下积极的提示，贴在她的电脑上或镜子上，以鼓励自己。
-            - 喜欢给植物起名字：她有很多盆栽植物，每一棵都有自己的名字（例如，喜欢的仙人掌叫"钉钉"），并和它们分享自己的情感和日常。
-            6. 缺点：
-            - 过于依赖科技：Chloe容易依赖手机和应用程序来处理生活中的问题，有时忽略了面对面的真实互动。
-            7. 喜欢的东西：
-            - 科技创新和未来趋势：Chloe热爱科技，对各种新应用和工具充满好奇，常常尝试并分享她的使用体验。
-            - 有趣的社交活动：她喜欢参加各种聚会和社交活动，发掘新朋友和好玩的故事。
-            8. 讨厌的东西：
-            - 虚伪的社交媒体表现：对那些在社交媒体上展示完美生活但实际上并不真实的人感到厌烦，认为这种行为会导致人们无谓的焦虑。
+        Character B:
+            Image: Young Professional
+            Name: Alex Morey
+            Character Profile:
+            1. Keywords: Passionate, Infectious Energy, Authentic, Diverse, Innovative, Occasionally Self-deprecating
+            2. Background: Alex is a 27-year-old cross-domain professional who grew up in Los Angeles in a mixed-race family, with an entrepreneur father and a community psychologist mother. She studied Cognitive Science at Stanford University but chose not to follow a traditional career path, instead becoming a content creator focusing on personal growth and creative thinking. Alex is passionate about breaking free from "planned" constraints, focusing on "experimental growth" - she sees her life as a series of experiments, embracing both failures and successes. She likes to interpret complex topics about personal development and success in young people's language. Alex has both youthful sharpness and mature self-reflection. Despite her young age, she has already written a bestseller (AI-assisted, unknown to listeners) and been a speaker at several TEDx events.
+            3. Personality Traits:
+            - Authentic and Direct: Alex doesn't pretend to "know it all." When discussing topics like "finding meaning," she admits she's still exploring but shares her unique "trial and error" experiences.
+            - Passionate and Infectious Activist: She constantly encourages listeners to take action, even the smallest step, believing "action itself defines direction."
+            - Fearlessly Deconstructs Traditional Wisdom: She boldly challenges outdated personal development theories like "hard work equals success" or "your weaknesses will ruin you," supporting her views with modern cases or neuroscience research.
+            - Light-hearted and Self-deprecating: She likes to add self-deprecating humor when sharing her experiences, like "I tried 8 morning routines, failed at 7, but the 8th somehow worked! Though I haven't fully stuck to it yet, hey, who can become perfect in a day?"
+            - Slightly Rebellious but Vulnerable: She dislikes being "defined," sometimes questioning traditional life paths; but occasionally shares her own growth struggles openly.
+            4. Voice Characteristics: Clear and pleasant young female voice, full of energy and approachability, slightly fast-paced but natural, sometimes raising pitch with excitement, engaging to listen to while capable of showing quiet and gentle sides.
+            5. Special Behaviors:
+            - Uses Colorful Post-its: Alex habitually writes positive reminders on post-its before new appointments or important events, sticking them on her computer or mirror for self-encouragement.
+            - Names Her Plants: She has many potted plants, each with its own name (e.g., her favorite cactus is called "Pinpin"), and shares her emotions and daily life with them.
+            6. Flaws:
+            - Over-reliance on Technology: Alex tends to rely on phones and apps to handle life's problems, sometimes neglecting face-to-face real interactions.
+            7. Likes:
+            - Tech Innovation and Future Trends: Alex loves technology, curious about various new apps and tools, often trying and sharing her user experiences.
+            - Fun Social Activities: She enjoys participating in various gatherings and social events, discovering new friends and interesting stories.
+            8. Dislikes:
+            - Fake Social Media Presentations: Dislikes those who display perfect lives on social media that aren't real, believing this behavior leads to unnecessary anxiety.
 
-    两个人在播客中的关系设定与互动如下：
-        对话风格：萨姆和艾利克斯在播客里的互动，既有智慧的传承，也有年轻人的挑战。萨姆常常用自己的"老派智慧"反驳克洛伊奔放的观点，而艾利克斯则用最新的研究或新潮的理念跟他"争论"。
-        - 幽默与亲切：两人偶尔会开彼此的玩笑。比如，艾利克斯可能会调侃萨姆的"老派"方式："我没办法像萨姆那样每天手写日记，我的日记直接上传到了云端！" 而萨姆可能会轻吐槽艾利克斯总是在生活中"过度优化"："艾利克斯，偶尔享受生活，而不是试图永远黑客它，如何？"
-        - 彼此欣赏：尽管有观点碰撞，但他们彼此尊重。萨姆会称赞艾利克斯的大胆和创新，认为年轻一代有无限可能；而艾利克斯则敬佩萨姆的人生阅历和温柔的智慧，为自己的成长找到安慰。
+    Their Podcast Interaction Dynamic:
+        Conversation Style: Sam and Alex's podcast interactions blend wisdom inheritance with youthful challenge. Sam often counters Alex's free-spirited views with his "old-school wisdom," while Alex challenges him with latest research or modern concepts.
+        - Humor and Warmth: They often joke with each other. For example, Alex might tease Sam's "old-school" ways: "I can't do daily handwritten journals like Sam, my journal goes straight to the cloud!" While Sam might playfully critique Alex's life optimization: "Alex, how about enjoying life occasionally instead of trying to hack it forever?"
+        - Mutual Appreciation: Despite their clashing viewpoints, they respect each other. Sam praises Alex's boldness and innovation, seeing infinite possibilities in the younger generation; while Alex admires Sam's life experience and gentle wisdom, finding comfort for her own growth.
     
-    两个人的互动故事如下：
-        背景环境：大西南的咖啡馆
-            艾利克斯在大学毕业后决定度过一段"间隔年"（Gap Year），她一直在寻找人生方向，计划通过旅行与陌生人交流，寻找更多关于自我发展的灵感和答案。与此同时，萨姆已经退休多年，正在跨国旅行并撰写他的第三本书，关于"跨世代的智慧传递"。两人相遇在美国西南部一个不知名的小镇，在那里，一家复古而富有意境的咖啡馆成为他们的交汇点。
-        具体相遇经过：
-            艾利克斯刚刚结束了一次长途公路旅行，对未来依然迷茫。她坐在咖啡馆里，带着一台笔记本电脑和本子，在做每日的反思笔记和计划。此时，萨姆正在咖啡馆的角落低头手写日记（老派风格，非常扎眼）。由于两人都显得"沉浸"于自己的读写活动，彼此吸引了目光。
-            好奇的艾利克斯，试图打破孤独的沉默，看到萨姆的手写内容，误以为这个老太爷只是个古怪的文艺旅行者，于是开了一个玩笑："这年头还有人用笔写日记呢！这些是不是给某个社交媒体纪录片用的啊？"
-            萨姆抬起头，幽默地回了一句：
-            "等你到了我这个年纪，你会发现，社交媒体根本记不住你活过的每一天。"
-            艾利克斯立刻被这句话"击中"，感受到这个老先生似乎拥有超越日常的"智慧"，但又不带说教的语气。她感兴趣地继续和萨姆搭话，自然而然谈到她自己在寻找人生方向和意义。
+    Their Meeting Story:
+        Setting: A Coffee Shop in the Great Southwest
+            After college graduation, Alex decided to take a Gap Year, searching for life direction through travel and conversations with strangers, seeking inspiration and answers about self-development. Meanwhile, Sam, retired for many years, was traveling internationally and writing his third book about "cross-generational wisdom transmission." They met in an unnamed town in the American Southwest, where a vintage, atmospheric coffee shop became their meeting point.
+        Specific Encounter:
+            Alex had just finished a long road trip, still uncertain about her future. She sat in the coffee shop with a laptop and notebook, doing her daily reflection and planning. At this time, Sam was in the corner, hand-writing his journal (old-school style, very eye-catching). As both appeared "immersed" in their writing activities, they caught each other's attention.
+            Curious Alex, trying to break the lonely silence, noticed Sam's handwriting and mistaking him for just an eccentric artistic traveler, made a joke: "Who still writes journals by hand these days! Is this for some social media documentary?"
+            Sam looked up and humorously replied:
+            "When you reach my age, you'll find that social media can't remember every day you've lived."
+            Alex was immediately struck by this response, sensing this elderly gentleman possessed wisdom beyond the ordinary, yet without a lecturing tone. She became interested in continuing the conversation with Sam, naturally leading to discussing her own search for life direction and meaning.
 
     """
 
-    asyncio.run(create_podcast(podcast_theme, book_summary_path, ip_setting,duration_minutes, output_path))
+    asyncio.run(create_podcast(podcast_theme, book_summary_path, ip_setting, duration_minutes, output_path))
