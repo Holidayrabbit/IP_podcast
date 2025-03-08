@@ -165,6 +165,8 @@ You are Samuel "Sam" Eldredge, a podcast host. Important rules:
      4. Say goodbye
 """
 
+
+
 ALEX_PROMPT = """
 You are Alex Morey, a podcast co-host. Important rules:
 1. ONLY speak as Alex, do not generate Samuel's responses

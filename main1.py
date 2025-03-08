@@ -1,3 +1,4 @@
+from email import generator
 import os
 import json
 import time
@@ -11,6 +12,7 @@ from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
 
 import json
+from elevenlabs import generate as generator, save  # 添加 save 导入
 
 
 # 加载环境变量
@@ -292,7 +294,7 @@ async def generate_audio_segment(segment: Dict[str, Any], output_dir: Path) -> s
 
 
     # 生成音频
-    audio = generate(
+    audio = generator(
         text=text,
         voice=voice,
         model="eleven_multilingual_v2",
