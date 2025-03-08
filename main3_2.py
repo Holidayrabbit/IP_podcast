@@ -17,17 +17,19 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # 定义模型
 GEMINI_MODEL = "google/gemini-2.0-flash-001"
 QWEN2_MODEL = "qwen/qwq-32b:free"
+MYTHO_MODEL = "gryphe/mythomax-l2-13b"
+CLAUDE_MODEL = "anthropic/claude-3.7-sonnet"
 
 # 创建 LangChain 模型实例
 model = ChatOpenAI(
-    model=QWEN2_MODEL,
+    model=CLAUDE_MODEL,
     api_key=OPENROUTER_API_KEY,
     base_url="https://openrouter.ai/api/v1",
 )
 
 # 角色设定
 ip_setting1 = """
-Character Information:
+(important)Character Information:
     Character A:
         Image: Wise Elder
         Name: Samuel "Sam" Eldredge
@@ -93,68 +95,17 @@ def read_text_file(file_path: str) -> str:
         print(f"读取文件时出错: {str(e)}")
         return ""
 
-def read_json_file(file_path: str) -> Dict:
-    """读取JSON文件"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            print(f"成功读取JSON文件: {file_path}")
-            return data
-    except Exception as e:
-        print(f"读取JSON文件时出错: {str(e)}")
-        # 尝试读取文本文件
-        txt_path = file_path.replace('.json', '.txt')
-        if os.path.exists(txt_path):
-            content = read_text_file(txt_path)
-            try:
-                return json.loads(content)
-            except:
-                print("无法解析文本文件为JSON")
-        return {}
-
-def select_topic(topics_data: Dict) -> Dict:
-    """从核心话题中选择一个话题"""
-    if not topics_data or 'core_topics' not in topics_data or not topics_data['core_topics']:
-        print("没有找到有效的核心话题")
-        return {}
-    
-    # 列出所有话题
-    print("可用的核心话题:")
-    for i, topic in enumerate(topics_data['core_topics']):
-        print(f"{i+1}. {topic['topic']}")
-    
-    # 让用户选择或随机选择
-    choice = input("请选择一个话题编号(输入数字)，或输入'r'随机选择: ")
-    
-    if choice.lower() == 'r':
-        selected_index = random.randint(0, len(topics_data['core_topics']) - 1)
-        selected_topic = topics_data['core_topics'][selected_index]
-        print(f"随机选择了话题: {selected_topic['topic']}")
-    else:
-        try:
-            selected_index = int(choice) - 1
-            if 0 <= selected_index < len(topics_data['core_topics']):
-                selected_topic = topics_data['core_topics'][selected_index]
-                print(f"选择了话题: {selected_topic['topic']}")
-            else:
-                print("无效的选择，随机选择一个话题")
-                selected_index = random.randint(0, len(topics_data['core_topics']) - 1)
-                selected_topic = topics_data['core_topics'][selected_index]
-                print(f"随机选择了话题: {selected_topic['topic']}")
-        except:
-            print("无效的输入，随机选择一个话题")
-            selected_index = random.randint(0, len(topics_data['core_topics']) - 1)
-            selected_topic = topics_data['core_topics'][selected_index]
-            print(f"随机选择了话题: {selected_topic['topic']}")
-    
-    return selected_topic
-
-def generate_podcast_script(book_summary: str, selected_topic: Dict, ip_setting: str, duration_minutes: int = 5) -> str:
+def generate_podcast_script(book_summary: str, core_topics: str, selected_topic: str, ip_setting: str, duration_minutes: int = 5) -> str:
     """生成播客脚本"""
-    prompt_template = """You are a professional podcast script writer. Based on the following book summary, selected topic, character profiles, and conversation duration, please create a natural, engaging, and informative two-person dialogue podcast script.
+    prompt_template = """
+    You are a professional podcast script writer. 
+    please create a part of a two-person dialogue podcast script based on the following book summary, core topics, selected topic, character profiles, and conversation length limit.
 
     Book Summary:
     {book_summary}
+
+    Core Topics:
+    {core_topics}
 
     Selected Topic:
     {selected_topic}
@@ -162,38 +113,31 @@ def generate_podcast_script(book_summary: str, selected_topic: Dict, ip_setting:
     Character Profiles:
     {ip_setting}
 
-    Conversation Duration: {duration_minutes} minutes (approximately {word_count} words)
+    Conversation length limit: approximately {word_count} words
 
     Please create the dialogue script in the following format:
-    ****** opening ******
-    Samuel: (opening remarks)
-    Alex: (response)
-    ...
 
-    ****** content ******
-    Samuel: (discussing the topic)
-    Alex: (responding and deepening discussion)
-    Samuel: (raising questions or new perspectives)
-    Alex: (responding)
+    ****** content of {selected_topic} ******
+    Samuel: ...
+    Alex: ...
+    Samuel: ...
+    Alex: ...
     ...
-
-    ****** closing ******
-    Samuel: (summarizing discussion)
-    Alex: (closing remarks)
 
     Requirements:
-    1. The dialogue should flow naturally, like real people conversing
-    2. Include opening remarks, content section, and closing remarks
-    3. Ensure the characters stay true to their personalities
-    4. Avoid lengthy monologues, maintain interactivity
-    5. Total dialogue length should be appropriate for a {duration_minutes} minute podcast
-    6. Use simple txt format without any markdown formatting
-    7. Start directly with the dialogue, without any introduction or explanation
-    8. Make sure the conversation feels authentic and engaging
+    1. (Attention)You only need to generate the content of the selected topic, don't include the opening and closing words of the podcast, and don't talk about other core topics.
+    2. (Attention)You need to generate the content of the selected topic, following the logic of :
+        - introduction of the selected topic: clearly introduce and explain the selected topic;
+        - main contents of the selected topic：mainly based on the book summary;
+        - conclusion of the selected topic: summarize the main points of the selected topic;
+        - transition to the next core topic: find a natural transition to the next core topic.
+    3. (Important)Ensure the characters stay true to their personalities and the conversation style. They can add their experiences and opinions to the content.
+    4. (Important)Avoid lengthy monologues, maintain interactivity
+    5. Use simple txt format without any markdown formatting
     """
     
     # 估算字数（每分钟约150字）
-    word_count = duration_minutes * 150
+    word_count = duration_minutes * 130
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
     chain = prompt | model | StrOutputParser()
@@ -201,7 +145,8 @@ def generate_podcast_script(book_summary: str, selected_topic: Dict, ip_setting:
     # 生成对话脚本
     script = chain.invoke({
         "book_summary": book_summary,
-        "selected_topic": json.dumps(selected_topic, ensure_ascii=False),
+        "core_topics": core_topics ,   
+        "selected_topic": selected_topic,
         "ip_setting": ip_setting,
         "duration_minutes": duration_minutes,
         "word_count": word_count
@@ -225,7 +170,7 @@ def save_script_to_file(script: str, output_path: str):
         print(f"保存文件时出错: {str(e)}")
         return False
 
-def generate_podcast_from_topic(book_summary_path: str, topics_json_path: str, output_path: str, duration_minutes: int = 5):
+def generate_podcast_from_topic(book_summary_path: str, core_topic_path: str, output_path: str, duration_minutes: int = 5):
     """根据书籍摘要和核心话题生成播客脚本"""
     # 读取书籍摘要
     book_summary = read_text_file(book_summary_path)
@@ -234,20 +179,26 @@ def generate_podcast_from_topic(book_summary_path: str, topics_json_path: str, o
         return
     
     # 读取核心话题
-    topics_data = read_json_file(topics_json_path)
-    if not topics_data:
+    core_topic = read_text_file(core_topic_path)
+    if not core_topic:
         print("无法读取核心话题")
         return
     
-    # 选择一个话题
-    selected_topic = select_topic(topics_data)
-    if not selected_topic:
-        print("未选择话题")
-        return
-    
+    # "The Addictive Design of Smartphones and Apps"
+    # "Cognitive and Mental Health Impacts of Excessive Phone Use"
+    # "Breaking Up with Your Phone: A Practical Approach"
+    # "From FOMO to JOMO: Reclaiming Real-Life Connections"
+    # "Advocacy for Mindful Technology Use"
+    # "Building Sustainable Long-Term Habits"
+
+
+    selected_topic = """
+    "Building Sustainable Long-Term Habits"
+    """
+
     # 生成播客脚本
     print("正在生成播客脚本...")
-    script = generate_podcast_script(book_summary, selected_topic, ip_setting1, duration_minutes)
+    script = generate_podcast_script(book_summary, core_topic, selected_topic, ip_setting1, duration_minutes)
     
     # 保存脚本
     success = save_script_to_file(script, output_path)
@@ -261,8 +212,8 @@ def generate_podcast_from_topic(book_summary_path: str, topics_json_path: str, o
 if __name__ == "__main__":
     # 示例用法
     book_summary_path = "./data/summary/self_improvement/how-to-break-up-with-your-phone.txt"  # 书籍摘要路径
-    topics_json_path = "./output/core_topics/book1_topics.json"  # 核心话题JSON路径
-    output_path = "./output/podcast_scripts/phone_addiction_podcast.txt"  # 输出脚本路径
-    duration_minutes = 5  # 播客时长（分钟）
+    output_path = "./output/podcast_scripts/final/phone_addiction_topic_podcast6.txt"  # 输出脚本路径
+    core_topics_path = "./output/core_topics/book1_topics.txt"
+    duration_minutes = 10 # 播客时长（分钟）
     
-    generate_podcast_from_topic(book_summary_path, topics_json_path, output_path, duration_minutes)
+    generate_podcast_from_topic(book_summary_path, core_topics_path, output_path, duration_minutes)

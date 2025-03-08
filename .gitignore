@@ -53,3 +53,4 @@ data/books/                    # 屏蔽名为 books 的文件夹及其所有内�
 ref/                        # 屏蔽名为 ref 的文件夹及其所有内容
 data/summary/
 history/
+output/
