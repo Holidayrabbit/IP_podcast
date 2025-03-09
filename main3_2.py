@@ -23,6 +23,7 @@ CLAUDE_MODEL = "anthropic/claude-3.7-sonnet"
 # 创建 LangChain 模型实例
 model = ChatOpenAI(
     model=CLAUDE_MODEL,
+    temperature=0.8,
     api_key=OPENROUTER_API_KEY,
     base_url="https://openrouter.ai/api/v1",
 )
@@ -127,13 +128,35 @@ def generate_podcast_script(book_summary: str, core_topics: str, selected_topic:
     Requirements:
     1. (Attention)You only need to generate the content of the selected topic, don't include the opening and closing words of the podcast, and don't talk about other core topics.
     2. (Attention)You need to generate the content of the selected topic, following the logic of :
-        - introduction of the selected topic: clearly introduce and explain the selected topic;
-        - main contents of the selected topic：mainly based on the book summary;
+        - Propose new topics and their definitions: It is important to indicate that the previous topic has ended and this is a new topic.;
+        - main contents of the selected topic：mainly based on the book summary and the two hosts'story;
         - conclusion of the selected topic: summarize the main points of the selected topic;
         - transition to the next core topic: find a natural transition to the next core topic.
     3. (Important)Ensure the characters stay true to their personalities and the conversation style. They can add their experiences and opinions to the content.
     4. (Important)Avoid lengthy monologues, maintain interactivity
     5. Use simple txt format without any markdown formatting
+
+    Here is some examples of dialogue techniques :
+    1. Propose new topics :
+        -OK,let's start our first topic: ...
+        -Now, let’s turn our attention to today's second content: ...
+    2. Main content:    
+        **Narrative Logic：**
+            <talk experience/book content/story>: I will tell you, as you know, I grew up in a challenging background. ...
+            <Extract more general questions and point out the point of view>: And what I mean by that is so many people make judgments about people. And they don't recognize the paths or the problems or the adversities they face....
+            <after a deep conversation, go back to the mainline>：I want to go back to the moment in the magic shop that truly shaped you forever and change the trajectory of your life and so the person who's listening can really perhaps see themselves or someone they love in the story. 
+        **Simplify concept：**
+            <Explain to the audience in simpler, more direct words>:If you will. I want to see if I can translate back. This is where a lot of big words, I realize that you are a neurosurgeon and you teach these concepts all over the world, but I want you and I to put our arm around the person that's listening, and I want to see if I can't shorthand all this science, 
+            <interrupt the other person briefly to ask questions>：
+            A: And as a scientific serious researcher, I know that there is something called the bio-psycho-social models. 
+            B: Okay, hold on. What is the bio, social, pycho? what did you say?
+            Guest: bio-psycho-social model
+            A: okay, and what does that mean in a normal person speak? 
+            B: bio-psycho-social is.......
+    3. Transition to the next core topic:
+        -In summary, the core of [Topic 1] is… But the story is not over yet, because next we have to see how it affects [Topic 2].
+        -If [Topic 1] is a glass of strong liquor, then [Topic 2] is a cup of refreshing tea that leaves you with a sweet aftertaste...
+        -If you are interested in [Topic 1], then the following [Topic 2] will give you even more surprises!
     """
     
     # 估算字数（每分钟约150字）
@@ -212,7 +235,7 @@ def generate_podcast_from_topic(book_summary_path: str, core_topic_path: str, ou
 if __name__ == "__main__":
     # 示例用法
     book_summary_path = "./data/summary/self_improvement/how-to-break-up-with-your-phone.txt"  # 书籍摘要路径
-    output_path = "./output/podcast_scripts/final/phone_addiction_topic_podcast6.txt"  # 输出脚本路径
+    output_path = "./output/podcast_scripts39/phone_addiction_topic_podcast6.txt"  # 输出脚本路径
     core_topics_path = "./output/core_topics/book1_topics.txt"
     duration_minutes = 10 # 播客时长（分钟）
     
